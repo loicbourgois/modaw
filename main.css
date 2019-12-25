@@ -1,0 +1,9 @@
+.sequencer-controls {
+	display: flex;
+	flex-direction: row;
+}
+
+.sequencer-controls > input {
+	flex-grow: 1;
+	width: 0;
+}
