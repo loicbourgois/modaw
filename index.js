@@ -11,12 +11,42 @@ const defaultColors = {
 }
 const presets = []
 let colors = defaultColors
+let nodes
+
+const writePresetToEditor = (preset) => {
+	document.getElementById('editor').value = preset
+}
 
 window.onload = () => {
 	console.log("Welcome to ModaW")
-	go(presets['patch-2'])
+	registerLoadButton()
+	writePresetToEditor(JSON.stringify(presets['patch-2'], null, 2))
+	go(getConfigFromEditor())
 	//test()
 };
+
+const registerLoadButton = () => {
+	document.getElementById('button-load').addEventListener('click', () => {
+		
+		document.getElementById('content').innerHTML = '';
+		nodes.forEach(node => {
+			if (node.config.startTime !== undefined && node.audioNode) {
+				node.audioNode.stop()
+			} else if (node.config.startTime !== undefined) {
+				node.stop()
+			} else {
+				// Do nothing
+			}
+		})
+		
+		
+		go(getConfigFromEditor())
+	})
+}
+
+const getConfigFromEditor = () => {
+	return JSON.parse(document.getElementById('editor').value)
+}
 
 const test = () => {
 	console.log("This is a test")
@@ -122,12 +152,70 @@ const newObject = (audioContext, config) => {
 				config.frequency.min, config.frequency.value, config.frequency.max,
 				config.gain.min, config.gain.value, config.gain.max
 			);
+		case 'filter':
+			return newFilter(
+				audioContext,
+				config.id,
+				config.filter_type,
+				config.out,
+				config.frequency && config.frequency.min ? config.frequency.min : 1,
+				config.frequency && config.frequency.value ? config.frequency.value : 1000,
+				config.frequency && config.frequency.max ? config.frequency.max : 20000,
+				config.frequency && config.frequency.resolution ? config.frequency.resolution : 1000,
+				config.gain && config.gain.min ? config.gain.min : 0,
+				config.gain && config.gain.value ? config.gain.value : 25,
+				config.gain && config.gain.max ? config.gain.max : 50,
+				config.gain && config.gain.resolution ? config.gain.resolution : 100,
+				config.q && config.q.min ? config.q.min : 0,
+				config.q && config.q.value ? config.q.value : 25,
+				config.q && config.q.max ? config.q.max : 50,
+				config.q && config.q.resolution ? config.q.resolution : 100,
+			)
 		case 'break': 
-			document.getElementById('body').appendChild( document.createElement('div'));
+			appendContent(document.createElement('div'));
 			return {id:config.id}
 		default:
 			console.error(`cannot create node of type '${config.type}'`)
 	}
+}
+
+const appendContent = (element) => {
+	document.getElementById('content').appendChild( element )
+}	
+
+const newFilter = (
+	audioContext, id, type, outId,
+	frequencyMin, frequencyValue, frequencyMax, frequencyResolution,
+	gainMin, gainValue, gainMax, gainResolution,
+	qMin, qValue, qMax, qResolution
+) => {
+	let node = new Object();
+	node.audioNode = audioContext.createBiquadFilter();
+	node.html = document.createElement('div');
+	node.html.frequency = newControl(id+'-frequency', 'slider', 'default', frequencyMin, frequencyMax, frequencyValue, frequencyResolution, node.audioNode.frequency)
+	node.html.appendChild(node.html.frequency);
+	node.html.gain = newControl(id+'-gain', 'slider', 'default', gainMin, gainMax, gainValue, gainResolution, node.audioNode.gain)
+	node.html.appendChild(node.html.gain);
+	node.html.Q = newControl(id+'-Q', 'slider', 'default', qMin, qMax, qValue, qResolution, node.audioNode.Q)
+	node.html.appendChild(node.html.Q);
+	appendContent(node.html);
+	node.audioNode.type = type;
+	node.connect = (nodes) => {
+		outNode = nodes.get(outId)
+		if (outNode === undefined) {
+			console.warn(`no out node for '${id}'`)
+			return
+		}
+		switch (outNode.config.type) {
+			case 'gain':
+				node.audioNode.connect(outNode.audioNode)
+				break;
+			default:
+				console.error(`cannot connect '${id}' to '${outId}'`)
+				break;
+		}
+	}
+	return node
 }
 
 const newGain = (audioContext, id, min, max, value, isMainOut, resolution, outId, outParam, mode) => {
@@ -136,7 +224,7 @@ const newGain = (audioContext, id, min, max, value, isMainOut, resolution, outId
 	node.audioNode = audioContext.createGain()
 	node.audioNode.gain.value = value
 	node.html = newControl(id, 'slider', mode, min, max, value, resolution, node.audioNode.gain)
-	document.getElementById('body').appendChild(node.html);
+	appendContent(node.html);
 	node.connect = (nodes) => {
 		outNode = nodes.get(outId)
 		if (outNode === undefined) {
@@ -150,8 +238,11 @@ const newGain = (audioContext, id, min, max, value, isMainOut, resolution, outId
 						node.audioNode.connect(outNode.audioNode.detune)
 						break;
 					default:
-						log.error(`cannot connect '${id}' to param '${outparam}'`)
+						log.error(`cannot connect '${id}' to param '${outId}.${outparam}'`)
 				}
+				break;
+			case 'filter':
+				node.audioNode.connect(outNode.audioNode)
 				break;
 			default:
 				console.error(`cannot connect '${id}' to '${outId}'`)
@@ -168,7 +259,7 @@ const newOscillator = (audioContext, id, signal, frequency, detuneMin, detuneVal
 	node.html = document.createElement('div');
 	node.html.detune = newControl(id, 'slider', 'default', detuneMin, detuneMax, detuneValue, detuneResolution, node.audioNode.detune)
 	node.html.appendChild(node.html.detune);
-	document.getElementById('body').appendChild(node.html);
+	appendContent(node.html);
 	return node;
 }
 
@@ -181,7 +272,7 @@ const newClock = (audioContext, id, bpm, resolution) => {
 	node.html.style.width = getCssSquareLength(1);
 	node.html.style.height = getCssSquareLength(1);
 	node.html.style.border = '0px solid';
-	document.getElementById('body').appendChild(node.html);
+	appendContent(node.html);
 	let a = bpm / 60.0
 	let b = 1.0 / a / resolution
 	node.localTimeAtTime = (t) => {
@@ -226,7 +317,7 @@ const newSequencer = (audioContext, id, resolution, steps, width, outs) => {
 	node.html.appendChild(node.html.controls)
 	
 	node.steps = []
-	document.getElementById('body').appendChild(node.html);
+	appendContent(node.html);
 	steps.forEach((stepValue, i) => {
 		node.steps[i] = {
 			start: {
@@ -271,6 +362,9 @@ const newSequencer = (audioContext, id, resolution, steps, width, outs) => {
 		}
 		outs.forEach(out => {
 			outNode = nodes.get(out.id)
+			if (outNode === undefined) {
+				console.error(`cannot find node ${out.id} for ${id}`)
+			}
 			switch (outNode.config.type) {
 				case 'gain':
 					switch (out.param) {
@@ -303,7 +397,7 @@ const newSequencer = (audioContext, id, resolution, steps, width, outs) => {
 //const newModulator = (audioContext, id, signal, out, frequencyMin, frequencyValue, frequencyMax, gainMin, gainValue, gainMax) => {
 //	let node = new Object()
 //	node.html = document.createElement('div');
-//	document.getElementById('body').appendChild(node.html);
+//	appendContent(node.html);
 //	// Gain
 //	node.gainAudioNode = audioContext.createGain()
 //	node.htmlGain = newControl(id+'-gain', 'slider', 'default', gainMin, gainMax, gainValue, gainMax, node.gainAudioNode.gain)
@@ -410,12 +504,10 @@ const newControl = (id, type, mode, min, max, value, resolution, controlledSetti
 			slider.type = 'range';
 			slider.min = 0;
 			slider.max = resolution;
-			slider.value = ((value-min) / (max-min) )* resolution //+ (max-min);
-			console.log(id, value, slider.value, min)
+			slider.value = ((value-min) / (max-min) )* resolution
 			let setSettingValue = (sliderValue) => {
 				try {
 					let a = convertSliderValue(sliderValue, resolution, min, max, mode)
-					console.log(a)
 					controlledSetting.value = a
 				} catch (e) {
 					console.error('sliderValue:', sliderValue)
