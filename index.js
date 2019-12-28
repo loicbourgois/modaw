@@ -9,26 +9,51 @@ const defaultColors = {
 	fill: '#66e',
 	line: '#ee6',
 }
-const presets = []
-let colors = defaultColors
+const presets = new Map()
+
+let colors
 let nodes
 
-const writePresetToEditor = (preset) => {
-	document.getElementById('editor').value = preset
-}
-
 window.onload = () => {
-	console.log("Welcome to ModaW")
+	registerPresets()
 	registerLoadButton()
-	writePresetToEditor(JSON.stringify(presets['patch-2'], null, 2))
+	registerRunButton()
+	console.log("Welcome to ModaW")
+	writePresetToEditor('patch-2')
 	go(getConfigFromEditor())
 	//test()
 };
 
+const test = () => {
+	console.log("This is a test")
+}
+
+const writePresetToEditor = (presetName) => {
+	document.getElementById('editor').value = JSON.stringify(presets.get(presetName), null, 2)
+}
+
+const registerPresets = () => {
+	let selectPreset = document.getElementById('select-preset')
+	presets.forEach((preset, key) => {
+		let option = document.createElement('option');
+		option.value = key
+		option.innerHTML = key
+		console.log(key)
+		selectPreset.appendChild(option)
+	})
+}
+
 const registerLoadButton = () => {
 	document.getElementById('button-load').addEventListener('click', () => {
-		
+		writePresetToEditor(document.getElementById('select-preset').value)
+		document.getElementById('button-run').click()
+	})
+}
+
+const registerRunButton = () => {
+	document.getElementById('button-run').addEventListener('click', () => {
 		document.getElementById('content').innerHTML = '';
+		colors = defaultColors
 		nodes.forEach(node => {
 			if (node.config.startTime !== undefined && node.audioNode) {
 				node.audioNode.stop()
@@ -38,18 +63,12 @@ const registerLoadButton = () => {
 				// Do nothing
 			}
 		})
-		
-		
 		go(getConfigFromEditor())
 	})
 }
 
 const getConfigFromEditor = () => {
 	return JSON.parse(document.getElementById('editor').value)
-}
-
-const test = () => {
-	console.log("This is a test")
 }
 
 const go = (config) => {
@@ -61,6 +80,7 @@ const go = (config) => {
 }
 
 const overrideColors = (configColors) => {
+	colors = JSON.parse(JSON.stringify(defaultColors))
 	if (configColors === undefined) {
 		return
 	}

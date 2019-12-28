@@ -1,4 +1,4 @@
-presets['patch-1'] = {
+presets.set('patch-1', {
 	colors: {
 		fill: '#e66',
 	},
@@ -194,4 +194,4 @@ presets['patch-1'] = {
 			isMainOut: true,
 		}
 	]
-}
+})

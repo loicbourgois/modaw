@@ -1,4 +1,4 @@
-presets['patch-2'] = {
+presets.set('patch-2', {
 	nodes: [
 		{
 			id: 'clock-16',
@@ -174,4 +174,4 @@ presets['patch-2'] = {
 			isMainOut: true,
 		}
 	]
-}
+})

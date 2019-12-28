@@ -13,6 +13,10 @@ body {
 	height: 100%;
 }
 
+button {
+	padding: 0.5em;
+}
+
 .sequencer-controls {
 	display: flex;
 	flex-direction: row;
@@ -26,6 +30,14 @@ body {
 #editor-outer {
 	display: flex;
 	flex-direction: column;
+}
+
+#select-preset-wrapper {
+	display: flex;
+}
+
+#select-preset {
+	flex-grow: 1;
 }
 
 #editor {
