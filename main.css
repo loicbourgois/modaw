@@ -17,6 +17,10 @@ button {
 	padding: 0.5em;
 }
 
+canvas {
+	border: 0px solid;
+}
+
 .sequencer-controls {
 	display: flex;
 	flex-direction: row;
@@ -48,4 +52,15 @@ button {
 
 #content {
 	overflow: auto;
+	flex-grow: 1;
+}
+
+.gain {
+	background: #fee;
+	display: inline-flex;
+	flex-direction: column;
+}
+
+.gain:hover {
+	background: #fbb
 }

@@ -3,19 +3,23 @@ presets.set('patch-2', {
 		{
 			id: 'clock-16',
 			type: 'clock',
-			bpm: 174 / 16,
+			bpm: 174,
 			resolution: 100,
+			length: 16,
 		}, {
 			id: 'clock-8',
 			type: 'clock',
-			bpm: 174 / 8,
+			bpm: 174,
 			resolution: 100,
+			length: 8,
 		}, {
 			id: 'clock',
 			type: 'clock',
 			bpm: 174,
 			resolution: 100,
-		}, {
+		}, 
+		// Kick
+		{
 			id: 'sequencer-1',
 			type: 'sequencer',
 			clock: 'clock-8',
@@ -26,7 +30,8 @@ presets.set('patch-2', {
 				id: 'gain-1-1',
 				param: 'gain',
 			}]
-		}, {
+		}, 
+		{
 			id: 'sequencer-2',
 			type: 'sequencer',
 			clock: 'clock-8',
@@ -37,12 +42,15 @@ presets.set('patch-2', {
 				id: 'osc-1',
 				param: 'detune',
 			}]
-		}, {
+		}, 
+		{
 			id: 'osc-1',
 			type: 'oscillator',
 			signal: 'square',
 			out: 'gain-1-1',
-			frequency: 55,
+			frequency: {
+				value: 55,
+			},
 			detune: {
 				min: -1000,
 				value: 0,
@@ -50,7 +58,8 @@ presets.set('patch-2', {
 				resolution: 10,
 			},
 			startTime: 0,
-		}, {
+		}, 
+		{
 			id: 'gain-1-1',
 			type: 'gain',
 			value: 0.5,
@@ -72,7 +81,8 @@ presets.set('patch-2', {
 			gain: {
 				value: 35,
 			}
-		}, {
+		}, 
+		{
 			id: 'gain-1-2',
 			type: 'gain',
 			value: 0.5,
@@ -80,7 +90,9 @@ presets.set('patch-2', {
 			max: 1,
 			resolution: 1000,
 			out: 'mixer-1',
-		}, {
+		}, 
+		// 
+		{
 			id: 'sequencer-3',
 			type: 'sequencer',
 			clock: 'clock',
@@ -107,7 +119,9 @@ presets.set('patch-2', {
 			type: 'oscillator',
 			signal: 'square',
 			out: 'gain-2-1',
-			frequency: 55,
+			frequency: {
+				value: 55
+			},
 			detune: {
 				min: -1000,
 				value: 0,
