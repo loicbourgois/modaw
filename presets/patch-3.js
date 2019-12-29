@@ -206,7 +206,7 @@ presets.set('patch-3', {
 			type: 'sequencer',
 			clock: 'clock-1',
 			resolution: 100,
-			steps: [0.8, 0.0, 0.0, 0.0, 0.8, 0.0, 0.0, 0.0],
+			steps: [0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
 			width: 16,
 			outs: [
 			{
@@ -254,9 +254,8 @@ presets.set('patch-3', {
 				param: 'detune',
 			},
 			min: 0,
-			value: 1200,
+			value: 1200*35,
 			max: 1200*4*10,
-			//resolution: ,
 			mode: 'default',
 		},
 		/*{
