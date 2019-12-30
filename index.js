@@ -2,7 +2,7 @@ const AudioContext = window.AudioContext || window.webkitAudioContext
 const log10Multiplier = 1 / Math.log10(2.0)
 const expMultiplier = 1 / (Math.exp(1.0) - 1.0)
 const squareLengthNumber = 4
-const defaultDrawInterval = 20
+const defaultDrawInterval = 30
 const squareLength = `${squareLengthNumber}em`
 const defaultColors = {
 	background: '#222',
@@ -12,15 +12,14 @@ const defaultColors = {
 }
 const presets = new Map()
 
+const audioContext = new AudioContext()
 let colors
-let nodes
+let nodes = new Map()
 
 window.onload = () => {
-	registerPresets()
-	registerLoadButton()
-	registerRunButton()
+	registerHtmlElements();
 	console.log("Welcome to ModaW")
-	writePresetToEditor('patch-3')
+	writePresetToEditor('patch-2')
 	go(getConfigFromEditor())
 	//test()
 };
@@ -33,46 +32,36 @@ const writePresetToEditor = (presetName) => {
 	document.getElementById('editor').value = JSON.stringify(presets.get(presetName), null, 2)
 }
 
-const registerPresets = () => {
-	let selectPreset = document.getElementById('select-preset')
-	presets.forEach((preset, key) => {
-		let option = document.createElement('option');
-		option.value = key
-		option.innerHTML = key
-		selectPreset.appendChild(option)
-	})
-}
-
-const registerLoadButton = () => {
-	document.getElementById('button-load').addEventListener('click', () => {
-		writePresetToEditor(document.getElementById('select-preset').value)
-		document.getElementById('button-run').click()
-	})
-}
-
-const registerRunButton = () => {
-	document.getElementById('button-run').addEventListener('click', () => {
-		document.getElementById('content').innerHTML = '';
-		colors = defaultColors
-		nodes.forEach(node => {
-			if (node.config.startTime !== undefined && node.audioNode) {
-				node.audioNode.stop()
-			} else if (node.config.startTime !== undefined) {
-				node.stop()
-			} else {
-				// Do nothing
-			}
-		})
-		go(getConfigFromEditor())
-	})
-}
-
 const getConfigFromEditor = () => {
 	return JSON.parse(document.getElementById('editor').value)
 }
 
 const go = (config) => {
-	const audioContext = new AudioContext()
+	// Stop & Reset
+	nodes.forEach(node => {
+		if (node.draw !== undefined) {
+			if (node.drawTimeoutID === undefined) {
+				console.error(`cannot clear timeout for ${node.config.id}`)
+			}
+			clearTimeout(node.drawTimeoutID)
+		}
+		if (node.intervalIDs !== undefined) {
+			node.intervalIDs.forEach(intervalID => {
+				clearInterval(intervalID)
+			})
+		}
+		if (node.config.startTime !== undefined && node.audioNode) {
+			node.audioNode.stop()
+		} else if (node.stop !== undefined) {
+			node.stop()
+		} else {
+			//console.warn(`could not stop ${node.config.id}`)
+			// Do nothing
+		}
+	})
+	document.getElementById('content').innerHTML = '';
+	colors = JSON.parse(JSON.stringify(defaultColors))
+	// Start
 	overrideColors(config.colors)
 	nodes = create(audioContext, config.nodes)
 	connect(audioContext, nodes, config.nodes)
@@ -80,7 +69,6 @@ const go = (config) => {
 }
 
 const overrideColors = (configColors) => {
-	colors = JSON.parse(JSON.stringify(defaultColors))
 	if (configColors === undefined) {
 		return
 	}
@@ -238,139 +226,6 @@ const appendContent = (element) => {
 	document.getElementById('content').appendChild( element )
 }
 
-const newClock = (audioContext, id, bpm, resolution, length) => {
-	let node = new Object()
-	node.html = document.createElement('canvas');
-	node.html.id = id;
-	node.html.width = resolution;
-	node.html.height = resolution;
-	node.html.style.width = getCssSquareLength(1);
-	node.html.style.height = getCssSquareLength(1);
-	node.html.style.border = '0px solid';
-	appendContent(node.html);
-	let a = bpm / 60.0 / length
-	let b = 1.0 / a / resolution
-	node.localTimeAtTime = (t) => {
-		return ( t * a ) % 1.0 
-	}
-	node.valueAtTime = (t) => {
-		return 1.0 - node.localTimeAtTime(t)
-	}
-	let context = node.html.getContext('2d')
-	node.draw = () => {
-		context.fillStyle = colors.background
-		context.fillRect(0, 0, resolution, resolution)
-		context.fillStyle = colors.fill
-		context.fillRect(0, resolution - resolution * node.valueAtTime(audioContext.currentTime), resolution , resolution)
-		context.fillStyle = colors.line
-		for( let i = 0 ; i < resolution ; i++ ) {
-			v = node.valueAtTime(i * b) * resolution 
-			context.fillRect(i, resolution - v-2, 1, 4)
-		}
-		context.fillRect(resolution - node.valueAtTime(audioContext.currentTime) * resolution, 0, 1, resolution)
-		setTimeout(node.draw, node.drawInterval);
-	}
-	return node
-}
-
-const newSequencer = (audioContext, id, resolution, steps, width, outs) => {
-	let node = new Object();
-	node.steps = steps;
-	node.html = document.createElement('div');
-	node.html.style.background = colors.lightBackground
-	node.html.style.width = getCssSquareLength(width)
-	node.canvas = document.createElement('canvas');
-	node.canvas.id = id;
-	node.canvas.width = resolution * width;
-	node.canvas.height = resolution;
-	node.canvas.style.width = getCssSquareLength(width);
-	node.canvas.style.height = getCssSquareLength(1);
-	node.canvas.style.border = '0px solid';
-	node.html.appendChild(node.canvas);
-	
-	node.html.controls = document.createElement('div');
-	node.html.controls.classList.add('sequencer-controls');
-	node.html.appendChild(node.html.controls)
-	
-	node.steps = []
-	appendContent(node.html);
-	steps.forEach((stepValue, i) => {
-		node.steps[i] = {
-			start: {
-				value: stepValue
-			}
-		}
-		slider = newControl(id+'-slider-'+i, 'slider', 'default', 0, 1, stepValue, 100, node.steps[i].start)
-		node.html.controls.appendChild(slider);
-	})
-	node.valueAtTime = (t) => {
-		return node.valueAtLocalTime(node.localTimeAtTime(t))
-	}
-	node.valueAtLocalTime = (t) => {
-		let u = t * steps.length
-		let i = Math.floor(u)
-		return (1.0 - u % 1.0) * node.steps[i].start.value
-	}
-	node.localTimeAtTime = (t) => {
-		return 0.5
-	}
-	let context = node.canvas.getContext('2d')
-	node.draw = () => {
-		context.fillStyle = colors.background
-		context.fillRect(0, 0, node.canvas.width, resolution)
-		context.fillStyle = colors.fill
-		context.fillRect(0, resolution - resolution * node.valueAtTime(audioContext.currentTime), node.canvas.width , resolution)
-		context.fillStyle = colors.line
-		for( let i = 0 ; i < resolution ; i++ ) {
-			v = node.valueAtLocalTime(i / resolution) * resolution
-			context.fillRect(i * width, resolution - v-2, 1, 4)
-		}
-		context.fillRect(node.localTimeAtTime(audioContext.currentTime) * node.canvas.width, 0, 1, resolution)
-		setTimeout(node.draw, node.drawInterval);
-	};
-	node.connect = (nodes) => {
-		if (outs === undefined) {
-			console.warn(`no out configured for '${id}'`)
-			return
-		}
-		if (outs.length === 0) {
-			console.warn(`out configured for '${id}', but lentgh is 0`)
-			return
-		}
-		outs.forEach(out => {
-			outNode = nodes.get(out.id)
-			if (outNode === undefined) {
-				console.error(`cannot find node ${out.id} for ${id}`)
-			}
-			switch (outNode.config.type) {
-				case 'gain':
-					switch (out.param) {
-						case 'gain':
-							connectControllerToGain(audioContext, node, outNode)
-							break;
-						default:
-							console.error(`cannot connect '${id}' '${out.id}.${out.param}'`)
-					}
-					break;
-				case 'oscillator':
-					switch (out.param) {
-						case 'detune':
-							connectControllerToDetune(audioContext, node, outNode)
-							break;
-						default:
-							console.error(`cannot connect '${id}' '${out.id}.${out.param}'`)
-							break;
-					}
-					break;
-				default:
-					console.error(`cannot connect '${id}' to '${out.id}', with type '${outNode.config.type}'`)
-					break;
-			}
-		})
-	}
-	return node
-}
-
 const newFilter = (
 	audioContext, id, type, outId,
 	frequencyMin, frequencyValue, frequencyMax, frequencyResolution,
@@ -402,120 +257,6 @@ const newFilter = (
 				console.error(`cannot connect '${id}' to '${outId}'`)
 				break;
 		}
-	}
-	return node
-}
-
-const newController = (
-	audioContext,
-	id,
-	min,
-	max,
-	resolution,
-	values,
-	width,
-	outs,
-	clockId,
-) => {
-	let node = new Object();
-	node.html = document.createElement('div');
-	node.html.style.background = colors.lightBackground
-	node.html.style.width = getCssSquareLength(width)
-	node.canvas = document.createElement('canvas');
-	//node.canvas.id = id;
-	node.canvas.width = resolution * width;
-	node.canvas.height = resolution;
-	node.canvas.style.width = getCssSquareLength(width);
-	node.canvas.style.height = getCssSquareLength(1);
-	node.html.appendChild(node.canvas);
-	
-	node.html.controls = document.createElement('div');
-	node.html.controls.classList.add('sequencer-controls');
-	node.html.appendChild(node.html.controls)
-	
-	node.values = []
-	appendContent(node.html);
-	values.forEach((value, i) => {
-		node.values[i] = {
-			start: {
-				value: value
-			},
-			// TODO: allow newControl to conrol multiple values
-			// end: {
-			//	value: value
-			//},
-		}
-		slider = newControl(id+'-slider-'+i, 'slider', 'default', min, max, value, resolution, node.values[i].start)
-		node.html.controls.appendChild(slider);
-	})
-	node.valueAtTime = (t) => {
-		return node.valueAtLocalTime(node.localTimeAtTime(t))
-	}
-	// Returns a value between 0 and 1
-	node.valueAtLocalTime = (t) => {
-		let u = t * node.values.length
-		let i = Math.floor(u)
-		return rangeValueToFloatValue(node.values[i].start.value, min, max)
-	}
-	node.localTimeAtTime = (t) => {
-		return 0.5
-	}
-	let context = node.canvas.getContext('2d')
-	node.draw = () => {
-		context.fillStyle = colors.background
-		context.fillRect(0, 0, node.canvas.width, resolution)
-		context.fillStyle = colors.fill
-		let v = node.valueAtTime(audioContext.currentTime)
-		context.fillRect(0, resolution - resolution * v, node.canvas.width , resolution)
-		context.fillStyle = colors.line
-		for( let i = 0 ; i < resolution ; i++ ) {
-			let v = node.valueAtLocalTime(i / resolution) * resolution
-			context.fillRect(i * width, resolution - v-2, 1, 4)
-		}
-		context.fillRect(node.localTimeAtTime(audioContext.currentTime) * node.canvas.width, 0, 1, resolution)
-		setTimeout(node.draw, node.drawInterval);
-	};
-	node.connect = (nodes) => {
-		let clock = nodes.get(clockId)
-		node.localTimeAtTime = clock.localTimeAtTime
-		if (outs === undefined) {
-			console.warn(`no outs configured for '${id}'`)
-			return
-		}
-		if (outs.length === 0) {
-			console.warn(`out configured for '${id}', but lentgh is 0`)
-			return
-		}
-		outs.forEach(out => {
-			outNode = nodes.get(out.id)
-			if (outNode === undefined) {
-				console.error(`cannot find node ${out.id} for ${id}`)
-			}
-			switch (outNode.config.type) {
-				case 'gain':
-					switch (out.param) {
-						case 'gain':
-							connectControllerToGain(audioContext, node, outNode)
-							break;
-						default:
-							console.error(`cannot connect '${id}' '${out.id}.${out.param}'`)
-					}
-					break;
-				case 'oscillator':
-					switch (out.param) {
-						case 'detune':
-							connectControllerToDetune(audioContext, node, outNode)
-							break;
-						default:
-							console.error(`cannot connect '${id}' '${out.id}.${out.param}'`)
-							break;
-					}
-					break;
-				default:
-					console.error(`cannot connect '${id}' to '${out.id}', with type '${outNode.config.type}'`)
-					break;
-			}
-		})
 	}
 	return node
 }
@@ -570,47 +311,6 @@ const connect = (audioContext, nodes, nodesConfig) => {
 			sequencer.localTimeAtTime = clock.localTimeAtTime
 		}
 	})
-}
-
-let durationSeconds = 0.001
-let intervalMilliseconds = durationSeconds * 1000.0
-let resolution = 2
-let stepDuration = durationSeconds / resolution
-	
-const connectControllerToGain = (audioContext, controller, node) => {
-	let t = 0;
-	let value = 0;
-	let startTime = 0;
-	setInterval(() => {
-		startTime = audioContext.currentTime;
-		for (let i = 0 ; i < resolution*2 ; i += 1) {
-			t = startTime + stepDuration * i
-			value = floatValueToRange(controller.valueAtTime(t),  node.config.min, node.config.max)
-			node.audioNode.gain.setValueAtTime(value, t)
-		}
-		t = audioContext.currentTime
-		value = floatValueToRange(controller.valueAtTime(t),  node.config.min, node.config.max)
-		node.audioNode.gain.setValueAtTime(value, t)
-		node.html.gain.value = controller.valueAtTime(t) * node.resolution
-	}, intervalMilliseconds)
-}
-
-const connectControllerToDetune = (audioContext, controller, node) => {
-	let t = 0;
-	let value = 0;
-	let startTime = 0;
-	setInterval(() => {
-		startTime = audioContext.currentTime;
-		for (let i = 0 ; i < resolution*2 ; i += 1) {
-			t = startTime + stepDuration * i
-			value = floatValueToRange(controller.valueAtTime(t),  node.config.detune.min, node.config.detune.max)
-			node.audioNode.detune.setValueAtTime(value, t)
-		}
-		t = audioContext.currentTime
-		value = floatValueToRange(controller.valueAtTime(t),  node.config.detune.min, node.config.detune.max)
-		node.audioNode.detune.setValueAtTime(value, t)
-		node.html.detune.value = floatValueToRange(controller.valueAtTime(t), 0, node.config.detune.resolution)
-	}, intervalMilliseconds)
 }
 
 //
